@@ -115,11 +115,13 @@ async function main() {
   assert(upRes.status === 200, `cover upload expected 200, got ${upRes.status}: ${JSON.stringify(upBody)}`);
   const uploadedCoverUrl = upBody?.data?.url;
   assert(
-    typeof uploadedCoverUrl === "string" && uploadedCoverUrl.startsWith("/uploads/post-covers/"),
-    `cover upload url: ${JSON.stringify(upBody)}`,
+    typeof uploadedCoverUrl === "string" &&
+      uploadedCoverUrl.startsWith("https://") &&
+      uploadedCoverUrl.includes("blob.vercel-storage.com"),
+    `cover upload url (需要 BLOB_READ_WRITE_TOKEN): ${JSON.stringify(upBody)}`,
   );
 
-  const coverAsset = await fetch(`${BASE_URL}${uploadedCoverUrl}`);
+  const coverAsset = await fetch(uploadedCoverUrl);
   assert(coverAsset.status === 200, `cover GET ${uploadedCoverUrl} expected 200, got ${coverAsset.status}`);
   const coverCt = coverAsset.headers.get("content-type") ?? "";
   assert(coverCt.includes("image/png"), `cover GET content-type expected image/png, got ${coverCt}`);

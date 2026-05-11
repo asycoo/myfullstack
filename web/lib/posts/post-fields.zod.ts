@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-/** 本站上传封面路径（与 app/api/posts/cover 生成规则一致） */
+/** 历史：本机 public 上传路径（rewrite 读盘）；新上传请用 Vercel Blob 返回的 https URL */
 export const uploadedCoverPathZ = z
   .string()
   .regex(/^\/uploads\/post-covers\/[a-f0-9]{32}\.(?:jpe?g|png|gif|webp)$/i, "无效的本地上传路径");
 
-/** http(s) 外链或本站上传路径 */
+/** http(s) 外链、Vercel Blob URL，或历史本站路径 */
 export const coverImageStoredZ = z.union([
   z.string().url("须为有效 http(s) 链接").max(2048),
   uploadedCoverPathZ,

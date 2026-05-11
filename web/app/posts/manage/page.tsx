@@ -193,7 +193,7 @@ function CoverImageControls({
         </Button>
       </Upload>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        本地保存至 public（≤2MB）。部署到无持久磁盘的环境时请改用 OSS / R2 等对象存储。
+        封面上传至 Vercel Blob（≤2MB）：需「Public」Blob Store + 环境变量 BLOB_READ_WRITE_TOKEN；也可直接粘贴 https:// 外链。
       </Typography.Text>
     </Space>
   );

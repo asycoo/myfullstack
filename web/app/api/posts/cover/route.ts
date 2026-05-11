@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+
+import { put } from "@vercel/blob";
 
 import { requireUser } from "@/lib/auth";
 import { fail, ok } from "@/lib/api";
@@ -11,7 +11,6 @@ import { safeError } from "@/lib/log/safe-log";
 
 export const dynamic = "force-dynamic";
 
-const UPLOAD_REL = "uploads/post-covers";
 const MAX_BYTES = 2 * 1024 * 1024;
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -28,6 +27,13 @@ export async function POST(request: Request) {
     const user = await requireUser();
     rateLimitOrThrow({ key: `post:cover-upload:${user.id}`, limit: 20, windowMs: 60_000 });
 
+    const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+    if (!token) {
+      return fail("INTERNAL_ERROR", "未配置环境变量 BLOB_READ_WRITE_TOKEN，无法上传到 Vercel Blob。", {
+        status: 503,
+      });
+    }
+
     const form = await request.formData();
     const file = form.get("file");
     if (!file || !(file instanceof File)) {
@@ -43,15 +49,24 @@ export async function POST(request: Request) {
     if (buf.length === 0) return fail("BAD_REQUEST", "文件为空");
     if (buf.length > MAX_BYTES) return fail("BAD_REQUEST", "图片不能超过 2MB");
 
-    const name = `${randomBytes(16).toString("hex")}.${ext}`;
-    const dir = path.join(process.cwd(), "public", UPLOAD_REL);
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, name), buf);
+    const pathname = `post-covers/${randomBytes(16).toString("hex")}.${ext}`;
 
-    const urlPath = `/${UPLOAD_REL}/${name}`;
-    return ok({ url: urlPath });
+    const uploaded = await put(pathname, buf, {
+      access: "public",
+      token,
+      contentType: file.type,
+    });
+
+    return ok({ url: uploaded.url });
   } catch (e: unknown) {
     if (e instanceof Response) return e;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("private store") || msg.includes("public access on a private")) {
+      return fail(
+        "BAD_REQUEST",
+        "当前 Vercel Blob Store 为「仅私有」，与公开封面展示不兼容。请在 Vercel → Storage → Create → Blob 新建「Public / 公开」存储，或在该 Store 设置中改为公开；将对应项目的 BLOB_READ_WRITE_TOKEN 写入环境变量后重试。",
+      );
+    }
     safeError("upload post cover failed", { route: "/api/posts/cover", method: "POST", ip, err: e });
     return fail("INTERNAL_ERROR", "封面上传失败");
   }
