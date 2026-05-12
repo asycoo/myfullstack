@@ -15,6 +15,12 @@ export async function countPublishedPostsForPublic() {
   return repo.countPublishedPosts();
 }
 
+const SITEMAP_POST_LIMIT = 5000;
+
+export async function listPublishedSlugsForSitemap() {
+  return repo.listPublishedSlugsForSitemap(SITEMAP_POST_LIMIT);
+}
+
 export async function countPostsForDashboard(userId: number) {
   return repo.countPostsVisibleToUser(userId);
 }

@@ -41,6 +41,16 @@ export async function countPublishedPosts() {
   return prisma.post.count({ where: { published: true } });
 }
 
+/** 站点地图：仅已发布文章的 slug / 更新时间（含 limit 防止极端大量） */
+export async function listPublishedSlugsForSitemap(take: number) {
+  return prisma.post.findMany({
+    where: { published: true },
+    select: { slug: true, updatedAt: true },
+    orderBy: { updatedAt: "desc" },
+    take,
+  });
+}
+
 export async function countPostsVisibleToUser(userId: number) {
   return prisma.post.count({ where: dashboardWhere(userId) });
 }

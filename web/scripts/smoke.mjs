@@ -71,6 +71,12 @@ async function request(path, { method = "GET", json, cookie, headers: extraHeade
 async function main() {
   console.log(`Smoke test base: ${BASE_URL}`);
 
+  const sitemapRes = await fetch(`${BASE_URL}/sitemap.xml`);
+  assert(sitemapRes.status === 200, `sitemap.xml expected 200, got ${sitemapRes.status}`);
+  const sitemapText = await sitemapRes.text();
+  assert(sitemapText.includes("urlset"), `sitemap should be XML urlset: ${sitemapText.slice(0, 160)}`);
+  assert(sitemapText.includes("<loc>"), "sitemap should contain <loc> entries");
+
   // 1) register -> should set cookie, /api/me should be non-null
   const emailA = randEmail("a");
   const passwordA = "123456789";
