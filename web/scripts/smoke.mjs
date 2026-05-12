@@ -88,6 +88,15 @@ async function main() {
     `robots Sitemap line should point to sitemap: ${robotsText.slice(0, 400)}`,
   );
 
+  const rssRes = await fetch(`${BASE_URL}/rss.xml`);
+  assert(rssRes.status === 200, `rss.xml expected 200, got ${rssRes.status}`);
+  const rssCt = rssRes.headers.get("content-type") ?? "";
+  assert(rssCt.includes("xml"), `rss content-type should be rss/xml, got ${rssCt}`);
+  const rssText = await rssRes.text();
+  assert(rssText.includes("<rss"), `rss should contain <rss: ${rssText.slice(0, 200)}`);
+  assert(rssText.includes("<channel>"), "rss should contain <channel>");
+  assert(rssText.includes("<item>"), "rss should contain <item>");
+
   // 1) register -> should set cookie, /api/me should be non-null
   const emailA = randEmail("a");
   const passwordA = "123456789";
