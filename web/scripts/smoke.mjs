@@ -220,6 +220,8 @@ async function main() {
   const publicGet = await request(`/api/posts/slug/${encodeURIComponent(postSlug)}`);
   assert(publicGet.res.status === 200, `public get by slug expected 200, got ${publicGet.res.status}: ${JSON.stringify(publicGet.body)}`);
   assert(publicGet.body?.data?.id === postId, `public get id mismatch: ${JSON.stringify(publicGet.body)}`);
+  const rt = publicGet.body?.data?.readingTimeMinutes;
+  assert(typeof rt === "number" && rt >= 1, `readingTimeMinutes expected number >= 1: ${JSON.stringify(publicGet.body)}`);
 
   const created2 = await request("/api/posts", {
     method: "POST",

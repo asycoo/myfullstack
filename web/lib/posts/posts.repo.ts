@@ -120,6 +120,7 @@ export async function createPost(input: {
   slug: string;
   excerpt?: string | null;
   coverImage?: string | null;
+  readingTimeMinutes: number;
 }) {
   return prisma.post.create({
     data: {
@@ -129,6 +130,7 @@ export async function createPost(input: {
       slug: input.slug,
       excerpt: input.excerpt ?? undefined,
       coverImage: input.coverImage ?? undefined,
+      readingTimeMinutes: input.readingTimeMinutes,
     },
     include: {
       author: { select: authorSelect },
@@ -182,6 +184,7 @@ export async function updatePost(
     slug?: string;
     excerpt?: string | null;
     coverImage?: string | null;
+    readingTimeMinutes?: number;
   }
 ) {
   return prisma.post.update({

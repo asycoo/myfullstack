@@ -1,5 +1,6 @@
 import { fail } from "@/lib/api";
 import { excerptFromContent } from "@/lib/posts/excerpt";
+import { estimateReadingMinutes } from "@/lib/posts/reading-time";
 import * as repo from "@/lib/posts/posts.repo";
 import { SLUG_PATTERN, slugifyTitle } from "@/lib/posts/slug";
 
@@ -83,6 +84,7 @@ export async function createPost(input: {
     slug,
     excerpt: excerpt ?? null,
     coverImage: coverTrim && coverTrim.length > 0 ? coverTrim : null,
+    readingTimeMinutes: estimateReadingMinutes(input.title, input.content),
   });
 }
 
@@ -115,6 +117,7 @@ export async function updatePost(
     slug?: string;
     excerpt?: string | null;
     coverImage?: string | null;
+    readingTimeMinutes?: number;
   } = {};
   if (data.title !== undefined) next.title = data.title;
   if (data.content !== undefined) next.content = data.content;
@@ -141,6 +144,12 @@ export async function updatePost(
     if (!row) throw fail("NOT_FOUND", "文章不存在");
     return row;
   }
+
+  const current = await repo.getPostById(id);
+  if (!current) throw fail("NOT_FOUND", "文章不存在");
+  const mergedTitle = next.title ?? current.title;
+  const mergedContent = next.content !== undefined ? next.content : current.content;
+  next.readingTimeMinutes = estimateReadingMinutes(mergedTitle, mergedContent);
 
   return repo.updatePost(id, next);
 }

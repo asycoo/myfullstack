@@ -11,6 +11,7 @@ export type PublicPostClientProps = {
     content: string | null;
     excerpt: string | null;
     coverImage: string | null;
+    readingTimeMinutes: number;
     createdAt: string;
     author: { name: string | null; email: string };
   };
@@ -35,6 +36,11 @@ export function PublicPostClient({ post, me }: PublicPostClientProps) {
   const router = useRouter();
   const [msgApi, contextHolder] = message.useMessage();
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  const readMinutes =
+    typeof post.readingTimeMinutes === "number" && Number.isFinite(post.readingTimeMinutes) && post.readingTimeMinutes >= 1
+      ? Math.min(999, Math.round(post.readingTimeMinutes))
+      : 1;
 
   const meLabel = useMemo(() => {
     if (!me) return null;
@@ -147,8 +153,10 @@ export function PublicPostClient({ post, me }: PublicPostClientProps) {
                 {post.title}
               </Typography.Title>
               <Typography.Text type="secondary">
-                作者：{post.author.name ?? post.author.email} ·{" "}
-                {new Date(post.createdAt).toLocaleString()}
+                作者：{post.author.name ?? post.author.email} · {new Date(post.createdAt).toLocaleString()}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                阅读约 <Typography.Text strong>{readMinutes}</Typography.Text> 分钟
               </Typography.Text>
               {post.coverImage ? (
                 // eslint-disable-next-line @next/next/no-img-element

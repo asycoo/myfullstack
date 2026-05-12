@@ -65,6 +65,16 @@ export async function POST(request: Request) {
       return fail("CONFLICT", "slug 冲突", { details: { field: "slug" } });
     }
     safeError("create post failed", { route: "/api/posts", method: "POST", ip, err: e });
-    return fail("INTERNAL_ERROR", "创建文章失败");
+    const rawCause = e instanceof Error ? e.message : String(e);
+    const devHint =
+      process.env.NODE_ENV !== "production"
+        ? {
+            cause: rawCause.length > 600 ? `${rawCause.slice(0, 600)}…` : rawCause,
+            ...(e instanceof Prisma.PrismaClientKnownRequestError
+              ? { prismaCode: e.code, meta: e.meta }
+              : {}),
+          }
+        : undefined;
+    return fail("INTERNAL_ERROR", "创建文章失败", { details: devHint });
   }
 }

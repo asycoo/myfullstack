@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { excerptFromContent } from "@/lib/posts/excerpt";
+import { displayReadingMinutes } from "@/lib/posts/reading-time";
 import * as postsService from "@/lib/posts/posts.service";
 import { getCurrentUser } from "@/lib/session/session.service";
 import { PublicPostClient } from "./PublicPostClient";
@@ -93,6 +94,7 @@ export default async function PublicPostPage({ params }: PageProps) {
     content: post.content,
     excerpt: post.excerpt,
     coverImage: post.coverImage,
+    readingTimeMinutes: displayReadingMinutes(post.readingTimeMinutes, post.title, post.content),
     createdAt: post.createdAt.toISOString(),
     author: {
       name: post.author.name,

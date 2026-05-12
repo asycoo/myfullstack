@@ -31,6 +31,7 @@ type PostItem = {
   content: string | null;
   excerpt: string | null;
   coverImage: string | null;
+  readingTimeMinutes: number;
   published: boolean;
   createdAt: string;
   author: { id: number; email: string; name: string | null };
