@@ -77,6 +77,17 @@ async function main() {
   assert(sitemapText.includes("urlset"), `sitemap should be XML urlset: ${sitemapText.slice(0, 160)}`);
   assert(sitemapText.includes("<loc>"), "sitemap should contain <loc> entries");
 
+  const robotsRes = await fetch(`${BASE_URL}/robots.txt`);
+  assert(robotsRes.status === 200, `robots.txt expected 200, got ${robotsRes.status}`);
+  const robotsText = await robotsRes.text();
+  assert(robotsText.includes("User-Agent:"), "robots should contain User-Agent");
+  assert(robotsText.includes("Sitemap:"), "robots should contain Sitemap");
+  const base = BASE_URL.replace(/\/$/, "");
+  assert(
+    robotsText.includes(`${base}/sitemap.xml`),
+    `robots Sitemap line should point to sitemap: ${robotsText.slice(0, 400)}`,
+  );
+
   // 1) register -> should set cookie, /api/me should be non-null
   const emailA = randEmail("a");
   const passwordA = "123456789";
