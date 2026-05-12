@@ -1,3 +1,4 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const authorSelect = { id: true, email: true, name: true } as const;
@@ -39,6 +40,63 @@ export async function listPostsVisibleToUser(userId: number, skip: number, take:
 
 export async function countPublishedPosts() {
   return prisma.post.count({ where: { published: true } });
+}
+
+/** 已发布且标题或摘要含关键词（PostgreSQL 不区分大小写，等价 ILIKE %q%） */
+function wherePublishedTitleOrExcerptContains(q: string): Prisma.PostWhereInput {
+  return {
+    published: true,
+    OR: [
+      { title: { contains: q, mode: "insensitive" } },
+      { excerpt: { contains: q, mode: "insensitive" } },
+    ],
+  };
+}
+
+export async function searchPublishedPostsByTitleOrExcerpt(q: string, skip: number, take: number) {
+  return prisma.post.findMany({
+    where: wherePublishedTitleOrExcerptContains(q),
+    ...postListInclude,
+    skip,
+    take,
+  });
+}
+
+export async function countPublishedPostsByTitleOrExcerpt(q: string) {
+  return prisma.post.count({ where: wherePublishedTitleOrExcerptContains(q) });
+}
+
+/** 后台列表范围 + 标题/摘要关键词（与 listPostsVisibleToUser 可见范围一致） */
+function whereDashboardTitleOrExcerptContains(userId: number, q: string): Prisma.PostWhereInput {
+  return {
+    AND: [
+      dashboardWhere(userId),
+      {
+        OR: [
+          { title: { contains: q, mode: "insensitive" } },
+          { excerpt: { contains: q, mode: "insensitive" } },
+        ],
+      },
+    ],
+  };
+}
+
+export async function searchPostsVisibleToUserByTitleOrExcerpt(
+  userId: number,
+  q: string,
+  skip: number,
+  take: number
+) {
+  return prisma.post.findMany({
+    where: whereDashboardTitleOrExcerptContains(userId, q),
+    ...postListInclude,
+    skip,
+    take,
+  });
+}
+
+export async function countPostsVisibleToUserByTitleOrExcerpt(userId: number, q: string) {
+  return prisma.post.count({ where: whereDashboardTitleOrExcerptContains(userId, q) });
 }
 
 /** 站点地图：仅已发布文章的 slug / 更新时间（含 limit 防止极端大量） */

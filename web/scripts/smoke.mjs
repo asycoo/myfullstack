@@ -254,6 +254,21 @@ async function main() {
     `anon GET /api/posts after publish should include ${postId}, got ${JSON.stringify(anonIdsAfterPublish)}`,
   );
 
+  const searchNoQ = await request("/api/posts/search");
+  assert(searchNoQ.res.status === 200, `search no q expected 200, got ${searchNoQ.res.status}`);
+  assert(
+    Array.isArray(searchNoQ.body?.data?.items) && searchNoQ.body?.data?.total === 0,
+    `search empty q should return empty: ${JSON.stringify(searchNoQ.body)}`,
+  );
+
+  const searchHello = await request(`/api/posts/search?q=${encodeURIComponent("hello")}`);
+  assert(searchHello.res.status === 200, `search hello expected 200, got ${searchHello.res.status}`);
+  const shItems = searchHello.body?.data?.items ?? [];
+  assert(
+    Array.isArray(shItems) && shItems.some((p) => p.id === postId),
+    `search should find published post by title substring: ${JSON.stringify(searchHello.body)}`,
+  );
+
   // 4) register B, try patch/delete A's post -> 403
   const emailB = randEmail("b");
   const rB = await request("/api/auth/register", {

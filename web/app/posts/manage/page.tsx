@@ -7,6 +7,7 @@ import type { FormInstance } from "antd";
 import {
   Button,
   Card,
+  Collapse,
   Form,
   Input,
   Layout,
@@ -207,6 +208,9 @@ export default function PostsManagePage() {
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [listTotal, setListTotal] = useState(0);
   const [page, setPage] = useState(1);
+  /** 当前列表使用的搜索关键词（trim 后）；空表示全量后台列表 */
+  const [listQuery, setListQuery] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -245,19 +249,26 @@ export default function PostsManagePage() {
     }
   }
 
-  async function refreshPosts(nextPage?: number) {
-    const targetPage = nextPage ?? page;
+  async function loadPosts(targetPage: number, query: string) {
     setLoadingPosts(true);
     try {
-      const res = await getJson<{ data: { items: PostItem[]; total: number } }>(
-        `/api/posts?page=${targetPage}&pageSize=${PAGE_SIZE}`,
-      );
+      const trimmed = query.trim();
+      const url =
+        trimmed.length > 0
+          ? `/api/posts/search?q=${encodeURIComponent(trimmed)}&page=${targetPage}&pageSize=${PAGE_SIZE}`
+          : `/api/posts?page=${targetPage}&pageSize=${PAGE_SIZE}`;
+      const res = await getJson<{ data: { items: PostItem[]; total: number } }>(url);
       setPosts(res.data.items);
       setListTotal(res.data.total);
       setPage(targetPage);
     } finally {
       setLoadingPosts(false);
     }
+  }
+
+  async function reloadPosts(nextPage?: number, queryOverride?: string) {
+    const q = queryOverride !== undefined ? queryOverride : listQuery;
+    await loadPosts(nextPage ?? page, q);
   }
 
   useEffect(() => {
@@ -270,7 +281,7 @@ export default function PostsManagePage() {
         }
         const csrf = await getJson<{ data: { token: string } }>("/api/csrf");
         setCsrfToken(csrf.data.token);
-        await refreshPosts();
+        await loadPosts(1, "");
       } catch (e: unknown) {
         msgApi.error(getApiErrorMessage(e) ?? "加载失败");
         setLoadingPosts(false);
@@ -383,79 +394,132 @@ export default function PostsManagePage() {
       <Layout.Content style={{ padding: 24 }}>
         <div className="mx-auto w-full max-w-3xl">
           <Space orientation="vertical" size="large" className="w-full">
-            <Card title="新建文章">
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                新建后默认为<strong>草稿</strong>，不会在公开列表出现；保存后在下方列表点击「上架」或对读者公开。
-              </Typography.Paragraph>
-              <Form
-                form={createForm}
-                layout="vertical"
-                requiredMark={false}
-                onFinish={async (values: {
-                  title: string;
-                  content?: string;
-                  excerpt?: string;
-                  coverImage?: string;
-                }) => {
-                  setCreating(true);
-                  try {
-                    await postJson("/api/posts", values, csrfToken);
-                    msgApi.success("已保存为草稿");
-                    createForm.resetFields();
-                    await refreshPosts(1);
-                  } catch (e: unknown) {
-                    if (isThrownApiError(e) && e.status === 401) {
-                      msgApi.warning("登录已过期，请重新登录");
-                      router.replace("/login");
-                      return;
-                    }
-                    msgApi.error(getApiErrorMessage(e) ?? "发布失败");
-                  } finally {
-                    setCreating(false);
-                  }
-                }}
-              >
-                <Form.Item
-                  label="标题"
-                  name="title"
-                  rules={[{ required: true, message: "请输入标题" }]}
-                >
-                  <Input placeholder="例如：我的第一篇登录后文章" />
-                </Form.Item>
-                <Form.Item label="内容" name="content">
-                  <Input.TextArea placeholder="可选" autoSize={{ minRows: 3, maxRows: 8 }} />
-                </Form.Item>
-                <Form.Item
-                  label="摘要（excerpt）"
-                  name="excerpt"
-                  extra="不填时，保存后会用正文前约 200 字自动生成摘要。"
-                >
-                  <Input.TextArea placeholder="列表与卡片展示用，最多 500 字" maxLength={500} showCount rows={2} />
-                </Form.Item>
-                <Form.Item
-                  label="封面图"
-                  extra="可本地上传或粘贴外链；留空则不显示封面。"
-                >
-                  <CoverImageControls form={createForm} csrfToken={csrfToken} msgApi={msgApi} />
-                </Form.Item>
-                <Button type="primary" htmlType="submit" loading={creating}>
-                  保存草稿
-                </Button>
-              </Form>
+            <Card>
+              <Collapse
+                bordered={false}
+                defaultActiveKey={[]}
+                items={[
+                  {
+                    key: "new",
+                    label: <Typography.Text strong>新建文章</Typography.Text>,
+                    children: (
+                      <>
+                        <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                          新建后默认为<strong>草稿</strong>，不会在公开列表出现；保存后在下方列表点击「上架」或对读者公开。
+                        </Typography.Paragraph>
+                        <Form
+                          form={createForm}
+                          layout="vertical"
+                          requiredMark={false}
+                          onFinish={async (values: {
+                            title: string;
+                            content?: string;
+                            excerpt?: string;
+                            coverImage?: string;
+                          }) => {
+                            setCreating(true);
+                            try {
+                              await postJson("/api/posts", values, csrfToken);
+                              msgApi.success("已保存为草稿");
+                              createForm.resetFields();
+                              await reloadPosts(1);
+                            } catch (e: unknown) {
+                              if (isThrownApiError(e) && e.status === 401) {
+                                msgApi.warning("登录已过期，请重新登录");
+                                router.replace("/login");
+                                return;
+                              }
+                              msgApi.error(getApiErrorMessage(e) ?? "发布失败");
+                            } finally {
+                              setCreating(false);
+                            }
+                          }}
+                        >
+                          <Form.Item
+                            label="标题"
+                            name="title"
+                            rules={[{ required: true, message: "请输入标题" }]}
+                          >
+                            <Input placeholder="例如：我的第一篇登录后文章" />
+                          </Form.Item>
+                          <Form.Item label="内容" name="content">
+                            <Input.TextArea placeholder="可选" autoSize={{ minRows: 3, maxRows: 8 }} />
+                          </Form.Item>
+                          <Form.Item
+                            label="摘要（excerpt）"
+                            name="excerpt"
+                            extra="不填时，保存后会用正文前约 200 字自动生成摘要。"
+                          >
+                            <Input.TextArea
+                              placeholder="列表与卡片展示用，最多 500 字"
+                              maxLength={500}
+                              showCount
+                              rows={2}
+                            />
+                          </Form.Item>
+                          <Form.Item label="封面图" extra="可本地上传或粘贴外链；留空则不显示封面。">
+                            <CoverImageControls form={createForm} csrfToken={csrfToken} msgApi={msgApi} />
+                          </Form.Item>
+                          <Button type="primary" htmlType="submit" loading={creating}>
+                            保存草稿
+                          </Button>
+                        </Form>
+                      </>
+                    ),
+                  },
+                ]}
+              />
             </Card>
 
             <Card
               title="文章列表"
               extra={
-                <Button onClick={() => void refreshPosts()} loading={loadingPosts}>
-                  刷新
-                </Button>
+                <Space wrap align="center">
+                  <Input.Search
+                    placeholder="标题或摘要"
+                    value={searchDraft}
+                    onChange={(e) => setSearchDraft(e.target.value)}
+                    onClear={() => {
+                      setListQuery("");
+                      setSearchDraft("");
+                      void loadPosts(1, "");
+                    }}
+                    onSearch={(v) => {
+                      const t = (v ?? "").trim();
+                      setListQuery(t);
+                      setSearchDraft(t);
+                      void loadPosts(1, t);
+                    }}
+                    allowClear
+                    style={{ width: 280 }}
+                    enterButton="搜索"
+                    loading={loadingPosts}
+                  />
+                  {listQuery ? (
+                    <Button
+                      onClick={() => {
+                        setListQuery("");
+                        setSearchDraft("");
+                        void loadPosts(1, "");
+                      }}
+                    >
+                      清除筛选
+                    </Button>
+                  ) : null}
+                  <Button onClick={() => void reloadPosts()} loading={loadingPosts}>
+                    刷新
+                  </Button>
+                </Space>
               }
             >
               <List
                 loading={loadingPosts}
                 dataSource={posts}
-                locale={{ emptyText: "还没有文章，先发一篇吧" }}
+                locale={{
+                  emptyText: listQuery.trim()
+                    ? "没有匹配的文章，试试其他关键词或清除筛选"
+                    : "还没有文章，先发一篇吧",
+                }}
                 renderItem={(item) => (
                   <List.Item
                     actions={
@@ -489,7 +553,7 @@ export default function PostsManagePage() {
                                   try {
                                     await patchJson(`/api/posts/${item.id}`, { published: false }, csrfToken);
                                     msgApi.success("已撤下");
-                                    await refreshPosts();
+                                    await reloadPosts();
                                   } catch (e: unknown) {
                                     if (isThrownApiError(e) && e.status === 401) {
                                       msgApi.warning("登录已过期，请重新登录");
@@ -517,7 +581,7 @@ export default function PostsManagePage() {
                                   try {
                                     await patchJson(`/api/posts/${item.id}`, { published: true }, csrfToken);
                                     msgApi.success("已上架，读者可访问");
-                                    await refreshPosts();
+                                    await reloadPosts();
                                   } catch (e: unknown) {
                                     if (isThrownApiError(e) && e.status === 401) {
                                       msgApi.warning("登录已过期，请重新登录");
@@ -544,7 +608,7 @@ export default function PostsManagePage() {
                                   await deleteJson(`/api/posts/${item.id}`, csrfToken);
                                   msgApi.success("已删除");
                                   const maxPage = Math.max(1, Math.ceil((listTotal - 1) / PAGE_SIZE));
-                                  await refreshPosts(Math.min(page, maxPage));
+                                  await reloadPosts(Math.min(page, maxPage));
                                 } catch (e: unknown) {
                                   if (isThrownApiError(e) && e.status === 401) {
                                     msgApi.warning("登录已过期，请重新登录");
@@ -624,7 +688,7 @@ export default function PostsManagePage() {
                   total={listTotal}
                   showSizeChanger={false}
                   showTotal={(t) => `共 ${t} 篇`}
-                  onChange={(p) => void refreshPosts(p)}
+                  onChange={(p) => void reloadPosts(p)}
                 />
               ) : null}
             </Card>
@@ -669,7 +733,7 @@ export default function PostsManagePage() {
             msgApi.success("已保存");
             setEditing(null);
             editForm.resetFields();
-            await refreshPosts();
+            await reloadPosts();
           } catch (e: unknown) {
             // validateFields 抛错时不提示
             if (typeof e === "object" && e !== null && "errorFields" in e) return;

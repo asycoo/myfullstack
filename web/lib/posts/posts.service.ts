@@ -15,6 +15,32 @@ export async function countPublishedPostsForPublic() {
   return repo.countPublishedPosts();
 }
 
+/** 站内搜索：仅已发布；`q` 为空格时返回空列表（不调 ILIKE） */
+export async function searchPublishedPostsForPublic(q: string, skip: number, take: number) {
+  const t = q.trim();
+  if (!t) {
+    return { items: [] as repo.PostWithAuthor[], total: 0 };
+  }
+  const [items, total] = await Promise.all([
+    repo.searchPublishedPostsByTitleOrExcerpt(t, skip, take),
+    repo.countPublishedPostsByTitleOrExcerpt(t),
+  ]);
+  return { items, total };
+}
+
+/** 作者后台列表内搜索：已发布（全员）+ 自己的草稿；`q` 为空时返回空列表 */
+export async function searchPostsForManage(userId: number, q: string, skip: number, take: number) {
+  const t = q.trim();
+  if (!t) {
+    return { items: [] as repo.PostWithAuthor[], total: 0 };
+  }
+  const [items, total] = await Promise.all([
+    repo.searchPostsVisibleToUserByTitleOrExcerpt(userId, t, skip, take),
+    repo.countPostsVisibleToUserByTitleOrExcerpt(userId, t),
+  ]);
+  return { items, total };
+}
+
 const SITEMAP_POST_LIMIT = 5000;
 
 export async function listPublishedSlugsForSitemap() {
