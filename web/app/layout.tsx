@@ -7,6 +7,14 @@ export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
   title: { default: "全栈练习", template: "%s · 全栈练习" },
   description: "Next.js + Prisma 练习项目",
+  openGraph: {
+    siteName: "全栈练习",
+    locale: "zh_CN",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+  },
 };
 
 export default function RootLayout({
