@@ -92,6 +92,11 @@ export default async function PublicPostPage({ params }: PageProps) {
       name: post.author.name,
       email: post.author.email,
     },
+    tags: (post.postTags ?? []).map((pt) => ({
+      id: pt.tag.id,
+      slug: pt.tag.slug,
+      label: pt.tag.label,
+    })),
   };
 
   const me = await getCurrentUser();

@@ -15,6 +15,7 @@ import {
   Modal,
   Pagination,
   Popconfirm,
+  Select,
   Space,
   Switch,
   Tag,
@@ -35,6 +36,7 @@ type PostItem = {
   published: boolean;
   createdAt: string;
   author: { id: number; email: string; name: string | null };
+  postTags?: { tag: { id: number; slug: string; label: string | null } }[];
 };
 
 const PAGE_SIZE = 5;
@@ -213,6 +215,7 @@ export default function PostsManagePage() {
   const [listQuery, setListQuery] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [tagOptions, setTagOptions] = useState<{ label: string; value: string }[]>([]);
   const [loadingMe, setLoadingMe] = useState(true);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -224,6 +227,7 @@ export default function PostsManagePage() {
     content?: string;
     excerpt?: string;
     coverImage?: string;
+    tags?: string[];
   }>();
   const [editForm] = Form.useForm<{
     title: string;
@@ -232,6 +236,7 @@ export default function PostsManagePage() {
     slug?: string;
     excerpt?: string;
     coverImage?: string;
+    tags?: string[];
   }>();
 
   const meLabel = useMemo(() => {
@@ -282,6 +287,19 @@ export default function PostsManagePage() {
         }
         const csrf = await getJson<{ data: { token: string } }>("/api/csrf");
         setCsrfToken(csrf.data.token);
+        try {
+          const tagRes = await getJson<{ data: { items: { id: number; slug: string; label: string | null }[] } }>(
+            "/api/tags",
+          );
+          setTagOptions(
+            tagRes.data.items.map((t) => ({
+              value: t.slug,
+              label: t.label?.trim() ? t.label : t.slug,
+            })),
+          );
+        } catch {
+          setTagOptions([]);
+        }
         await loadPosts(1, "");
       } catch (e: unknown) {
         msgApi.error(getApiErrorMessage(e) ?? "加载失败");
@@ -417,10 +435,21 @@ export default function PostsManagePage() {
                             content?: string;
                             excerpt?: string;
                             coverImage?: string;
+                            tags?: string[];
                           }) => {
                             setCreating(true);
                             try {
-                              await postJson("/api/posts", values, csrfToken);
+                              await postJson(
+                                "/api/posts",
+                                {
+                                  title: values.title,
+                                  content: values.content,
+                                  excerpt: values.excerpt,
+                                  coverImage: values.coverImage,
+                                  ...(values.tags && values.tags.length > 0 ? { tags: values.tags } : {}),
+                                },
+                                csrfToken,
+                              );
                               msgApi.success("已保存为草稿");
                               createForm.resetFields();
                               await reloadPosts(1);
@@ -460,6 +489,19 @@ export default function PostsManagePage() {
                           </Form.Item>
                           <Form.Item label="封面图" extra="可本地上传或粘贴外链；留空则不显示封面。">
                             <CoverImageControls form={createForm} csrfToken={csrfToken} msgApi={msgApi} />
+                          </Form.Item>
+                          <Form.Item
+                            label="标签"
+                            name="tags"
+                            extra="回车或逗号分隔；小写、数字与连字符会规范化。最多 20 个。"
+                          >
+                            <Select
+                              mode="tags"
+                              placeholder="例如：typescript、笔记"
+                              options={tagOptions}
+                              tokenSeparators={[","]}
+                              allowClear
+                            />
                           </Form.Item>
                           <Button type="primary" htmlType="submit" loading={creating}>
                             保存草稿
@@ -530,6 +572,15 @@ export default function PostsManagePage() {
                               key="edit"
                               size="small"
                               onClick={() => {
+                                setTagOptions((prev) => {
+                                  const map = new Map(prev.map((o) => [o.value, o]));
+                                  for (const pt of item.postTags ?? []) {
+                                    const slug = pt.tag.slug;
+                                    const lab = pt.tag.label?.trim() ? pt.tag.label : pt.tag.slug;
+                                    map.set(slug, { value: slug, label: lab });
+                                  }
+                                  return Array.from(map.values());
+                                });
                                 setEditing(item);
                                 editForm.setFieldsValue({
                                   title: item.title,
@@ -538,6 +589,7 @@ export default function PostsManagePage() {
                                   slug: item.slug,
                                   excerpt: item.excerpt ?? "",
                                   coverImage: item.coverImage ?? "",
+                                  tags: item.postTags?.map((pt) => pt.tag.slug) ?? [],
                                 });
                               }}
                             >
@@ -643,6 +695,13 @@ export default function PostsManagePage() {
                               )}
                             </Typography.Text>
                           </Space>
+                          {item.postTags && item.postTags.length > 0 ? (
+                            <Space wrap size={[4, 4]} style={{ marginTop: 4 }}>
+                              {item.postTags.map((pt) => (
+                                <Tag key={pt.tag.id}>{pt.tag.label?.trim() ? pt.tag.label : pt.tag.slug}</Tag>
+                              ))}
+                            </Space>
+                          ) : null}
                           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                             作者：{item.author.name ?? item.author.email} · {new Date(item.createdAt).toLocaleString()}
                             {isMine(item) ? (
@@ -719,12 +778,14 @@ export default function PostsManagePage() {
               slug?: string;
               excerpt: string;
               coverImage: string;
+              tags: string[];
             } = {
               title: values.title,
               content: values.content,
               published: values.published,
               excerpt: values.excerpt?.trim() ?? "",
               coverImage: values.coverImage?.trim() ?? "",
+              tags: values.tags ?? [],
             };
             const nextSlug = values.slug?.trim().toLowerCase();
             if (nextSlug && nextSlug !== editing.slug) {
@@ -777,6 +838,9 @@ export default function PostsManagePage() {
             ]}
           >
             <Input placeholder="例如：my-first-post" allowClear />
+          </Form.Item>
+          <Form.Item label="标签" name="tags" extra="保存时以当前选项为准覆盖；可清空移除全部标签。">
+            <Select mode="tags" placeholder="标签" options={tagOptions} tokenSeparators={[","]} allowClear />
           </Form.Item>
         </Form>
       </Modal>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Layout, Space, Typography, message } from "antd";
+import { Button, Card, Layout, Space, Tag, Typography, message } from "antd";
 
 export type PublicPostClientProps = {
   post: {
@@ -14,6 +14,7 @@ export type PublicPostClientProps = {
     readingTimeMinutes: number;
     createdAt: string;
     author: { name: string | null; email: string };
+    tags: { id: number; slug: string; label: string | null }[];
   };
   me: { id: number; email: string; name: string | null } | null;
 };
@@ -152,6 +153,13 @@ export function PublicPostClient({ post, me }: PublicPostClientProps) {
               <Typography.Title level={3} style={{ margin: 0 }}>
                 {post.title}
               </Typography.Title>
+              {post.tags.length > 0 ? (
+                <Space wrap size={[4, 4]}>
+                  {post.tags.map((t) => (
+                    <Tag key={t.id}>{t.label?.trim() ? t.label : t.slug}</Tag>
+                  ))}
+                </Space>
+              ) : null}
               <Typography.Text type="secondary">
                 作者：{post.author.name ?? post.author.email} · {new Date(post.createdAt).toLocaleString()}
               </Typography.Text>

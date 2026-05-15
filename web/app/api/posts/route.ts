@@ -9,12 +9,14 @@ import { safeError } from "@/lib/log/safe-log";
 import { getCurrentUser } from "@/lib/session/session.service";
 import { Prisma } from "@/app/generated/prisma/client";
 import { optionalCoverImageZ, optionalExcerptZ } from "@/lib/posts/post-fields.zod";
+import { optionalTagSlugsZ } from "@/lib/posts/post-tags.zod";
 
 const CreatePostSchema = z.object({
   title: z.string().min(1),
   content: z.string().optional(),
   excerpt: optionalExcerptZ,
   coverImage: optionalCoverImageZ,
+  tags: optionalTagSlugsZ,
 });
 
 const ListQuerySchema = z.object({
@@ -54,9 +56,16 @@ export async function POST(request: Request) {
     rateLimitOrThrow({ key: `post:create:${user.id}`, limit: 30, windowMs: 60_000 });
     const parsed = CreatePostSchema.safeParse(await request.json());
     if (!parsed.success) return failZod(parsed.error);
-    const { title, content, excerpt, coverImage } = parsed.data;
+    const { title, content, excerpt, coverImage, tags } = parsed.data;
 
-    const post = await postsService.createPost({ authorId: user.id, title, content, excerpt, coverImage });
+    const post = await postsService.createPost({
+      authorId: user.id,
+      title,
+      content,
+      excerpt,
+      coverImage,
+      tagSlugs: tags,
+    });
 
     return ok(post, { status: 201 });
   } catch (e: unknown) {

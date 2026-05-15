@@ -8,6 +8,7 @@ import { getClientIp } from "@/lib/ratelimit/ip";
 import { safeError } from "@/lib/log/safe-log";
 import { Prisma } from "@/app/generated/prisma/client";
 import { patchCoverImageZ, patchExcerptZ } from "@/lib/posts/post-fields.zod";
+import { optionalTagSlugsZ } from "@/lib/posts/post-tags.zod";
 import { SLUG_PATTERN } from "@/lib/posts/slug";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ const UpdatePostSchema = z.object({
     .optional(),
   excerpt: patchExcerptZ,
   coverImage: patchCoverImageZ,
+  tags: optionalTagSlugsZ,
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -42,7 +44,11 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     const bodyParsed = UpdatePostSchema.safeParse(await request.json());
     if (!bodyParsed.success) return failZod(bodyParsed.error);
 
-    const updated = await postsService.updatePost(id, user.id, bodyParsed.data);
+    const { tags, ...rest } = bodyParsed.data;
+    const updated = await postsService.updatePost(id, user.id, {
+      ...rest,
+      ...(tags !== undefined ? { tagSlugs: tags } : {}),
+    });
 
     return ok(updated);
   } catch (e: unknown) {

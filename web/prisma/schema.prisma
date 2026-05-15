@@ -19,19 +19,39 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+/** 文章标签：slug 唯一；纯中文等无法生成 ASCII slug 时为 `t-{hash}`，用 label 展示原文 */
+model Tag {
+  id        Int       @id @default(autoincrement())
+  slug      String    @unique
+  label     String?
+  postTags  PostTag[]
+  createdAt DateTime  @default(now())
+}
+
+model PostTag {
+  postId Int
+  tagId  Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
 model Post {
-  id                  Int      @id @default(autoincrement())
-  slug                String   @unique
+  id                  Int       @id @default(autoincrement())
+  slug                String    @unique
   title               String
   content             String?
   excerpt             String?
   coverImage          String?
-  readingTimeMinutes  Int      @default(1)
-  published           Boolean  @default(false)
+  readingTimeMinutes  Int       @default(1)
+  published           Boolean   @default(false)
   authorId            Int
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postTags  PostTag[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([authorId])
   /** Public list: WHERE published ORDER BY createdAt DESC */

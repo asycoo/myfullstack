@@ -3,6 +3,7 @@ import { excerptFromContent } from "@/lib/posts/excerpt";
 import { estimateReadingMinutes } from "@/lib/posts/reading-time";
 import * as repo from "@/lib/posts/posts.repo";
 import { SLUG_PATTERN, slugifyTitle } from "@/lib/posts/slug";
+import * as tagsRepo from "@/lib/tags/tags.repo";
 
 export async function listPublishedPostsForPublic(skip: number, take: number) {
   return repo.listPublishedPosts(skip, take);
@@ -68,6 +69,7 @@ export async function createPost(input: {
   content?: string;
   excerpt?: string;
   coverImage?: string;
+  tagSlugs?: string[];
 }) {
   const base = slugifyTitle(input.title);
   const slug = await allocateUniqueSlug(base);
@@ -77,7 +79,7 @@ export async function createPost(input: {
       ? excerptTrim.slice(0, 500)
       : excerptFromContent(input.content, 200);
   const coverTrim = input.coverImage?.trim();
-  return repo.createPost({
+  const post = await repo.createPost({
     authorId: input.authorId,
     title: input.title,
     content: input.content,
@@ -86,6 +88,15 @@ export async function createPost(input: {
     coverImage: coverTrim && coverTrim.length > 0 ? coverTrim : null,
     readingTimeMinutes: estimateReadingMinutes(input.title, input.content),
   });
+
+  if (input.tagSlugs !== undefined) {
+    await tagsRepo.replacePostTags(post.id, input.tagSlugs);
+    const full = await repo.getPostById(post.id);
+    if (!full) throw fail("INTERNAL_ERROR", "创建文章后读取失败");
+    return full;
+  }
+
+  return post;
 }
 
 async function assertPostOwnedBy(id: number, userId: number, action: "update" | "delete") {
@@ -106,6 +117,7 @@ export async function updatePost(
     slug?: string;
     excerpt?: string | null;
     coverImage?: string | null;
+    tagSlugs?: string[];
   }
 ) {
   await assertPostOwnedBy(id, userId, "update");
@@ -139,19 +151,28 @@ export async function updatePost(
     next.slug = await allocateUniqueSlug(base, id);
   }
 
-  if (Object.keys(next).length === 0) {
+  if (Object.keys(next).length === 0 && data.tagSlugs === undefined) {
     const row = await repo.getPostById(id);
     if (!row) throw fail("NOT_FOUND", "文章不存在");
     return row;
   }
 
-  const current = await repo.getPostById(id);
-  if (!current) throw fail("NOT_FOUND", "文章不存在");
-  const mergedTitle = next.title ?? current.title;
-  const mergedContent = next.content !== undefined ? next.content : current.content;
-  next.readingTimeMinutes = estimateReadingMinutes(mergedTitle, mergedContent);
+  if (Object.keys(next).length > 0) {
+    const current = await repo.getPostById(id);
+    if (!current) throw fail("NOT_FOUND", "文章不存在");
+    const mergedTitle = next.title ?? current.title;
+    const mergedContent = next.content !== undefined ? next.content : current.content;
+    next.readingTimeMinutes = estimateReadingMinutes(mergedTitle, mergedContent);
+    await repo.updatePost(id, next);
+  }
 
-  return repo.updatePost(id, next);
+  if (data.tagSlugs !== undefined) {
+    await tagsRepo.replacePostTags(id, data.tagSlugs);
+  }
+
+  const row = await repo.getPostById(id);
+  if (!row) throw fail("NOT_FOUND", "文章不存在");
+  return row;
 }
 
 export async function deletePost(id: number, userId: number) {

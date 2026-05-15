@@ -38,6 +38,18 @@ function PostListItems({ posts }: { posts: PostWithAuthor[] }) {
             >
               {p.title}
             </Link>
+            {p.postTags && p.postTags.length > 0 ? (
+              <p className="mt-1 flex flex-wrap gap-1">
+                {p.postTags.map((pt) => (
+                  <span
+                    key={pt.tag.id}
+                    className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700"
+                  >
+                    {pt.tag.label?.trim() ? pt.tag.label : pt.tag.slug}
+                  </span>
+                ))}
+              </p>
+            ) : null}
             <p className="mt-1 text-xs text-zinc-500">{p.author.name ?? p.author.email}</p>
             {p.excerpt ? (
               <p className="mt-1 line-clamp-2 text-sm text-zinc-600">{p.excerpt}</p>

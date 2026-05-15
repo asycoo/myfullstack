@@ -3,9 +3,18 @@ import { prisma } from "@/lib/prisma";
 
 const authorSelect = { id: true, email: true, name: true } as const;
 
+const postTagsNested = {
+  postTags: {
+    include: {
+      tag: { select: { id: true, slug: true, label: true } },
+    },
+  },
+} as const;
+
 const postListInclude = {
   include: {
     author: { select: authorSelect },
+    ...postTagsNested,
   },
   orderBy: { createdAt: "desc" as const },
 };
@@ -134,6 +143,7 @@ export async function createPost(input: {
     },
     include: {
       author: { select: authorSelect },
+      ...postTagsNested,
     },
   });
 }
@@ -155,6 +165,7 @@ export async function findPublishedPostBySlug(slug: string) {
     where: { slug, published: true },
     include: {
       author: { select: authorSelect },
+      ...postTagsNested,
     },
   });
 }
@@ -171,6 +182,7 @@ export async function getPostById(id: number) {
     where: { id },
     include: {
       author: { select: authorSelect },
+      ...postTagsNested,
     },
   });
 }
@@ -192,6 +204,7 @@ export async function updatePost(
     data,
     include: {
       author: { select: authorSelect },
+      ...postTagsNested,
     },
   });
 }

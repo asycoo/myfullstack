@@ -206,4 +206,4 @@ Redis 基础
 | W1 Redis（compose、`web/lib/redis`、health `redis` 字段） | 已落地 |
 | W2 验证码（`captcha.service`、`GET /api/auth/captcha`、`POST /api/auth/login` 校验、登录页联调） | 已落地 |
 | `/labs` 占位与首页入口 | 已落地 |
-| 功能块 1～5（评论、标签、头像、设置、审计等） | 未开始 |
+| 功能块 1～5（评论、标签、头像、设置、审计等） | 部分：`3.1` 文章标签（多对多）已落地；评论等未开始 |
