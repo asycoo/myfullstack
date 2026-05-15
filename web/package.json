@@ -6,12 +6,13 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3333",
     "build": "prisma migrate deploy && prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "cors:server": "node ./cors-lab/server.mjs",
-    "test:smoke": "node ./scripts/smoke.mjs"
+    "test:smoke": "node ./scripts/smoke.mjs",
+    "explain:week12": "bash -c 'set -a && [ -f .env ] && . ./.env && set +a && exec node ./node_modules/tsx/dist/cli.mjs ./scripts/run-explain-week12.ts'"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
@@ -21,6 +22,7 @@
     "@vercel/blob": "^2.3.3",
     "antd": "^6.3.5",
     "bcryptjs": "^3.0.3",
+    "ioredis": "^5.10.1",
     "next": "16.2.4",
     "prisma": "^6.19.3",
     "react": "19.2.4",
@@ -35,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

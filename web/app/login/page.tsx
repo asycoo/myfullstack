@@ -1,11 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Card, Form, Input, Tabs, Typography, message } from "antd";
 
-type LoginValues = { email: string; password: string };
+type LoginValues = { email: string; password: string; captchaAnswer?: string };
 type RegisterValues = { email: string; password: string; name?: string };
+
+type CaptchaState =
+  | { status: "loading" }
+  | { status: "disabled" }
+  | { status: "ready"; captchaId: string; question: string }
+  | { status: "error"; message: string };
 
 type ThrownApiError = { status: number; data: unknown };
 
@@ -50,6 +57,46 @@ export default function LoginPage() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
+  const [captcha, setCaptcha] = useState<CaptchaState>({ status: "loading" });
+  const [loginForm] = Form.useForm<LoginValues>();
+
+  const loadCaptcha = useCallback(async () => {
+    setCaptcha({ status: "loading" });
+    try {
+      const res = await fetch("/api/auth/captcha", { credentials: "include" });
+      const json = (await res.json()) as {
+        data?: { disabled?: boolean; captchaId?: string; question?: string };
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        setCaptcha({ status: "error", message: json?.error?.message ?? "获取验证码失败" });
+        return;
+      }
+      const d = json.data;
+      if (!d) {
+        setCaptcha({ status: "error", message: "响应无效" });
+        return;
+      }
+      if (d.disabled) {
+        setCaptcha({ status: "disabled" });
+        return;
+      }
+      if (d.captchaId && d.question) {
+        setCaptcha({ status: "ready", captchaId: d.captchaId, question: d.question });
+        loginForm.setFieldValue("captchaAnswer", undefined);
+      } else {
+        setCaptcha({ status: "error", message: "验证码数据不完整" });
+      }
+    } catch {
+      setCaptcha({ status: "error", message: "网络错误" });
+    }
+  }, [loginForm]);
+
+  useEffect(() => {
+    if (tab === "login") {
+      void loadCaptcha();
+    }
+  }, [tab, loadCaptcha]);
 
   const items = useMemo(
     () => [
@@ -58,16 +105,35 @@ export default function LoginPage() {
         label: "登录",
         children: (
           <Form<LoginValues>
+            form={loginForm}
             layout="vertical"
             requiredMark={false}
             onFinish={async (values) => {
               setLoading(true);
               try {
-                await postJson("/api/auth/login", values);
+                const body: Record<string, string> = {
+                  email: values.email,
+                  password: values.password,
+                };
+                if (captcha.status === "ready") {
+                  body.captchaId = captcha.captchaId;
+                  const ans = values.captchaAnswer?.trim() ?? "";
+                  if (!ans) {
+                    msgApi.warning("请填写验证码");
+                    setLoading(false);
+                    return;
+                  }
+                  body.captchaAnswer = ans;
+                }
+
+                await postJson("/api/auth/login", body);
                 msgApi.success("登录成功");
                 router.replace("/posts/manage");
               } catch (e: unknown) {
                 msgApi.error(getApiErrorMessage(e) ?? "登录失败");
+                if (captcha.status === "ready" || captcha.status === "error") {
+                  void loadCaptcha();
+                }
               } finally {
                 setLoading(false);
               }
@@ -87,7 +153,42 @@ export default function LoginPage() {
             >
               <Input.Password placeholder="至少 6 位" autoComplete="current-password" />
             </Form.Item>
-            <Button type="primary" htmlType="submit" block loading={loading}>
+            {captcha.status === "loading" ? (
+              <Typography.Text type="secondary">验证码加载中…</Typography.Text>
+            ) : null}
+            {captcha.status === "disabled" ? (
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                未配置 <code className="rounded bg-zinc-100 px-1 text-xs">REDIS_URL</code> 时跳过验证码（仅开发便利；生产建议启用
+                Redis）。
+              </Typography.Paragraph>
+            ) : null}
+            {captcha.status === "ready" ? (
+              <>
+                <Typography.Text type="secondary">
+                  验证码：<strong className="text-zinc-800">{captcha.question}</strong>
+                </Typography.Text>
+                <Form.Item
+                  label="答案（数字）"
+                  name="captchaAnswer"
+                  rules={[{ required: true, message: "请输入计算结果" }]}
+                  style={{ marginTop: 8 }}
+                >
+                  <Input placeholder="例如：12" inputMode="numeric" autoComplete="off" />
+                </Form.Item>
+                <Button type="link" htmlType="button" size="small" style={{ padding: 0 }} onClick={() => void loadCaptcha()}>
+                  换一题
+                </Button>
+              </>
+            ) : null}
+            {captcha.status === "error" ? (
+              <div className="mb-3 flex flex-col gap-2">
+                <Typography.Text type="danger">{captcha.message}</Typography.Text>
+                <Button size="small" onClick={() => void loadCaptcha()}>
+                  重试验证码
+                </Button>
+              </div>
+            ) : null}
+            <Button type="primary" htmlType="submit" block loading={loading} style={{ marginTop: 12 }}>
               登录
             </Button>
           </Form>
@@ -140,7 +241,7 @@ export default function LoginPage() {
         ),
       },
     ],
-    [loading, msgApi, router]
+    [captcha, loadCaptcha, loading, loginForm, msgApi, router],
   );
 
   return (
@@ -152,14 +253,16 @@ export default function LoginPage() {
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
           登录后才能发帖。我们使用 Cookie + Session 存储登录态（HttpOnly，更安全）。
+          {` `}
+          配置 <code className="rounded bg-zinc-100 px-1 text-xs">REDIS_URL</code> 后登录需算术验证码。
         </Typography.Paragraph>
-        <Tabs
-          activeKey={tab}
-          onChange={(k) => setTab(k as "login" | "register")}
-          items={items}
-        />
+        <p className="mb-4 text-sm">
+          <Link href="/labs" className="text-blue-600 hover:underline">
+            实验室 /labs
+          </Link>
+        </p>
+        <Tabs activeKey={tab} onChange={(k) => setTab(k as "login" | "register")} items={items} />
       </Card>
     </div>
   );
 }
-

@@ -2,14 +2,14 @@
  * Minimal smoke tests for your Next.js API (no test framework).
  *
  * Run:
- *   BASE_URL=http://localhost:3000 node scripts/smoke.mjs
+ *   BASE_URL=http://localhost:3333 node scripts/smoke.mjs
  *
  * Prereq:
  *   - `npm run dev` is running
  *   - Postgres container is up
  */
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -96,6 +96,47 @@ async function main() {
   assert(rssText.includes("<rss"), `rss should contain <rss: ${rssText.slice(0, 200)}`);
   assert(rssText.includes("<channel>"), "rss should contain <channel>");
   assert(rssText.includes("<item>"), "rss should contain <item>");
+
+  const healthRes = await fetch(`${BASE_URL}/api/health`);
+  assert(healthRes.status === 200, `health expected 200, got ${healthRes.status}`);
+  const healthBody = await healthRes.json();
+  assert(
+    healthBody.redis === "ok" || healthBody.redis === "skipped" || healthBody.redis === "down",
+    `health.redis should be ok|skipped|down: ${JSON.stringify(healthBody)}`,
+  );
+
+  /** 解析算术题文案（与 createMathCaptcha 格式一致） */
+  function solveMathCaptchaQuestion(question) {
+    const m = String(question).match(/^(\d+)\s*\+\s*(\d+)\s*=\s*\?/);
+    assert(m, `cannot parse captcha question: ${question}`);
+    return String(Number(m[1]) + Number(m[2]));
+  }
+
+  /** 未配置 Redis 时仅邮箱密码；配置且可用时需 captchaId / captchaAnswer（503 则中止 smoke） */
+  async function buildLoginJson(email, password) {
+    const cap = await request("/api/auth/captcha");
+    assert(
+      cap.res.status === 200 || cap.res.status === 503,
+      `captcha GET expected 200/503, got ${cap.res.status}: ${JSON.stringify(cap.body)}`,
+    );
+    if (cap.res.status === 503) {
+      throw new Error(
+        "GET /api/auth/captcha 返回 503（Redis 不可用）。请启动 Redis 或取消设置 REDIS_URL 后再跑 smoke。",
+      );
+    }
+    const data = cap.body?.data;
+    if (!data || data.disabled) return { email, password };
+    assert(
+      typeof data.captchaId === "string" && data.question,
+      `captcha payload invalid: ${JSON.stringify(cap.body)}`,
+    );
+    return {
+      email,
+      password,
+      captchaId: data.captchaId,
+      captchaAnswer: solveMathCaptchaQuestion(data.question),
+    };
+  }
 
   // 1) register -> should set cookie, /api/me should be non-null
   const emailA = randEmail("a");
@@ -319,7 +360,7 @@ async function main() {
   // 6) delete post as A should now be 401 (since logged out), login again, then delete ok
   const loginA = await request("/api/auth/login", {
     method: "POST",
-    json: { email: emailA, password: passwordA },
+    json: await buildLoginJson(emailA, passwordA),
   });
   assert(loginA.res.status === 200, `login A expected 200, got ${loginA.res.status}`);
   const cookieA2 = loginA.sessionCookie;
@@ -338,7 +379,7 @@ async function main() {
   for (let i = 0; i < 6; i += 1) {
     const r = await request("/api/auth/login", {
       method: "POST",
-      json: { email: emailA, password: "wrong-password" },
+      json: await buildLoginJson(emailA, "wrong-password"),
     });
     if (r.res.status === 429) saw429 = true;
     else assert(r.res.status === 401, `wrong login expected 401/429, got ${r.res.status}: ${JSON.stringify(r.body)}`);

@@ -7,6 +7,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "TOO_MANY_REQUESTS"
+  | "SERVICE_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 export type ApiError = {
@@ -38,7 +39,9 @@ export function fail(code: ApiErrorCode, message: string, init?: ResponseInit & 
               ? 409
               : code === "TOO_MANY_REQUESTS"
                 ? 429
-                : 500);
+                : code === "SERVICE_UNAVAILABLE"
+                  ? 503
+                  : 500);
 
   const body: ApiResponse<never> = {
     data: null,
@@ -55,4 +58,3 @@ export function fail(code: ApiErrorCode, message: string, init?: ResponseInit & 
 export function failZod(error: z.ZodError) {
   return fail("BAD_REQUEST", "参数校验失败", { details: error.flatten() });
 }
-

@@ -4,6 +4,9 @@ import { isWeakPassword } from "@/lib/auth/password.policy";
 export const LoginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
+  /** Redis 启用时必填；未启用 Redis 时可省略 */
+  captchaId: z.string().optional(),
+  captchaAnswer: z.string().optional(),
 });
 
 export const RegisterSchema = z.object({

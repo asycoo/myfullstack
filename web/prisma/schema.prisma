@@ -34,6 +34,8 @@ model Post {
   updatedAt DateTime @updatedAt
 
   @@index([authorId])
+  /** Public list: WHERE published ORDER BY createdAt DESC */
+  @@index([published, createdAt])
 }
 
 model Session {

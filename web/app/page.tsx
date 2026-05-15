@@ -24,6 +24,9 @@ export default function Home() {
             <Link href="/login">
               <Button>去登录 / 注册</Button>
             </Link>
+            <Link href="/labs">
+              <Button>实验室 /labs</Button>
+            </Link>
           </Space>
         </Space>
       </Card>

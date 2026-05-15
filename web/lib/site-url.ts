@@ -4,5 +4,5 @@ export function getSiteUrl(): URL {
   if (explicit) return new URL(explicit.endsWith("/") ? explicit.slice(0, -1) : explicit);
   const vercel = process.env.VERCEL_URL?.trim();
   if (vercel) return new URL(vercel.startsWith("http") ? vercel : `https://${vercel}`);
-  return new URL("http://localhost:3000");
+  return new URL("http://localhost:3333");
 }

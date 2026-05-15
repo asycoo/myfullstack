@@ -8,7 +8,7 @@ function getAllowedOrigins() {
       .map((s) => s.trim())
       .filter(Boolean);
   }
-  return ["http://localhost:3000"];
+  return ["http://localhost:3333", "http://localhost:3000"];
 }
 
 export function requireAllowedOrigin(request: Request) {
